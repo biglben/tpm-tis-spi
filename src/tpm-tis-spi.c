@@ -15,6 +15,7 @@
 #include <sys/byteorder.h>
 #include <tpm-tis-spi.h>
 #include <logging/log.h>
+#include <version.h>
 
 #define TPM_MAX_SPI_FRAMESIZE        64
 #define TPM_ZEPHYR_LOCALITY           1
@@ -385,8 +386,11 @@ static int tpm_receive(const struct device *dev,
   struct tpm_device_data *tpm = dev->data;
 
   // Calculate deadline (this also handles K_FOREVER)
+  #if KERNELVERSION <= 0x2060000
   uint64_t deadline = z_timeout_end_calc(timeout);
-
+  #else
+  uint64_t deadline = sys_clock_timeout_end_calc(timeout);
+  #endif
   // Responde to size query with max size
   if(response_buffer == NULL) {
     *response_size = 4096;
@@ -538,5 +542,16 @@ int tpm_init(const struct device *dev) {
 }
 
 #define TPM_NODE_ID DT_NODELABEL(TPM_DT_NODE_LABEL)
+#if KERNELVERSION < 0x2050000
+DEVICE_AND_API_INIT(tpm,
+                    DT_INST_LABEL(0),
+                    &tpm_init,
+                    &tpm_data,
+                    NULL,
+                    APPLICATION,
+                    CONFIG_APPLICATION_INIT_PRIORITY,
+                    &tpm_api);
+#else
 DEVICE_DT_DEFINE(TPM_NODE_ID, &tpm_init, NULL, &tpm_data, NULL, APPLICATION,
                  CONFIG_APPLICATION_INIT_PRIORITY, &tpm_api);
+#endif
